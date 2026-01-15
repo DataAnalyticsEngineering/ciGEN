@@ -212,6 +212,8 @@ bool Element::isUniqueFace
 bool Element::isOnInterface 
 
    ( IntVector&        face,
+     Int2DVector& interfaces, // Comment : Added to capture more than 1 interface per element
+     IntVector&        face0, // Comment : Added to have original face0 list inside function
      int&              oppVertex,
      int&              fIndex,
      const NodeSet&    nodeSet,
@@ -223,7 +225,8 @@ bool Element::isOnInterface
   int         nodeCount = faces_[0].size ( );
   int         id, pos, mat;
   int         count;
-
+  int         facescount = 0; // Comment : Variable to count number of interfacial faces
+  bool        flag = false;  // Comment : Variable Flag to indicate if any interfacial face is found
 
   if ( !isInterfaceElement ( nodeSet, position, globdat ) )
   {
@@ -231,12 +234,26 @@ bool Element::isOnInterface
   }
 
   IntVector   vertices(nodeCount);
+  IntVector   vertices0(nodeCount); // Comment : Variable to store node numbers of current element from original mesh
+  int        neicount, imat, jmat, jelem; // Comment : neighboring elements of curr elem count, imat : Grain ID of current element
+  // jmat : Grain ID of neighboring element, jelem : neighboring element index
+  ElemPointer        jp; // Comment : Pointer to neighboring element
+  vector<IntVector>   jfaces; // Comment : faces of neighboring element
+  IntVector      jnodes, jnodes0, sface0; // Comment : connectivity of neighboring element
+  // Comment : Printing neighbors for debugging
+  std::cout << "Neighbors of element " << index_ << ": ";
+  IntVector neighbors = globdat.elemNeighbors[index_];
+  for (size_t i = 0; i < neighbors.size(); ++i) {
+    std::cout << neighbors[i] << " ";
+  }
+  std::cout << std::endl;
 
   // loop over faces of 3D element
-
+  interfaces.resize ( faceCount );
   for ( int jf = 0; jf < faceCount; jf++ )
   {
     vertices = faces_[jf];
+    vertices0 = faces0_[jf];
 
     count    = 0;
 
@@ -244,32 +261,73 @@ bool Element::isOnInterface
 
     for ( int in = 0; in < nodeCount; in++ )
     {
-      id  = vertices[in];
+      id  = vertices0[in];
       pos = position[id];
 
       mat = nodeSet[pos]->getDuplicity ();
 
       // if this node is interfacial
 
-      if ( mat == 2 ) count++;
+      if ( mat >= 2 ) count++; // Comment : Changed condition to mat >= 2 to capture multiple interfaces, originally was mat == 2, which does not work in all cases
     }
+
+    imat = static_cast<const Int2IntMap&>(globdat.elem2Domain).at(index_); // Comment : Collects current grain ID
 
     // if all nodes of face jf are interfacial
     // then this face is on INTERFACE
 
+    // Comment : Added logic to capture multiple interfacial faces per element; Starts Here
     if ( count == nodeCount ) 
     {
       face.resize ( count );
-      face      = vertices;
+      // EDIT NEW
+      int m1, m2, m3;
+      m1 = vertices0[0]; m2 = vertices0[1] ; m3 = vertices0[2];
+      neicount = neighbors.size();
+      // Looping over all the neighboring elements of the current element
+      for (int je = 0; je < neicount; je++)
+      {
+        jelem = static_cast<const Int2IntMap&>(globdat.elemId2Position).at(neighbors[je]);
+        jp = globdat.elemSet[jelem];
+
+        cout << "Index" << index_ << " Neighbor" << jp->getIndex() << endl;
+
+        if (jp->getIndex() == index_) continue;
+
+        jp->getSortedFaces0 (jfaces);
+        jp->getConnectivity (jnodes);
+        jp->getConnectivity0 (jnodes0);
+        cout << "Hehe1\n";
+
+        jmat = static_cast<const Int2IntMap&>(globdat.elem2Domain).at(jp->getIndex());
+
+        if (imat == jmat) continue;
+        cout << "Hehe2\n";
+        
+        sface0 = vertices0;
+        std::sort ( sface0.begin(), sface0.end() );
+        if ( find ( jfaces.begin(), jfaces.end(), sface0 ) != jfaces.end() )
+        {
+          face.resize(count);
+          face = vertices;
+          face0 = vertices0;
+        } 
+      }
+      // COMMENT : Added logic to capture multiple interfacial faces per element; Ends Here
+      // EDIT NEW
+      /*face      = vertices;
+      face0    = vertices0;
       oppVertex = oppositeVertices_[jf];
 
-      fIndex    = jf;
+      fIndex    = jf;*/
 
-      return true;
+      flag = true;
+
+      // return true;
     }
   }
 
-  return false;
+  return flag;
 }
 
 

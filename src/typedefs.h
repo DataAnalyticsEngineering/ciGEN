@@ -29,5 +29,6 @@ typedef boost::shared_ptr<Node>    NodePointer;
 typedef boost::shared_ptr<Element> ElemPointer;
 typedef vector<NodePointer>        NodeSet;
 typedef vector<ElemPointer>        ElemSet;
+typedef vector<vector<int> >       Int2DVector;
 
 #endif

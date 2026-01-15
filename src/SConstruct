@@ -1,4 +1,14 @@
 env = Environment()
 
-env.Program ('mesh-generator', Glob('*.cpp'))
+boost_include_path = r'C:\Users\Pri\Downloads\boost_1_87_0\boost_1_87_0'
+boost_lib_path = r'C:\Users\Pri\Downloads\boost_1_87_0\boost_1_87_0\stage\lib'
+
+env.Append(CPPPATH=[boost_include_path])
+env.Append(LIBPATH=[boost_lib_path])
+
+env.Append(CXXFLAGS=['/std:c++14', '/EHsc'])
+
+env.Append(LIBS=['libboost_system-vc143-mt-gd-x64-1_87', 'libboost_filesystem-vc143-mt-gd-x64-1_87','libboost_exception-vc143-mt-gd-x64-1_87'])
+
+env.Program (target='mesh-generator', source=Glob('*.cpp'))
 

@@ -137,8 +137,9 @@ class Element
    // if so, return the indices of nodes of that face 
     
    bool                  isOnInterface 
-      
-         ( IntVector&        face,    
+
+         ( IntVector&        face, Int2DVector& interfaces, 
+	   IntVector&        face0,
 	   int&              oppVertex,
 	   int&              fIndex,
 	   const NodeSet&    nodeSet,
@@ -343,9 +344,24 @@ inline void Element::setConnectivity
 
 inline void Element::changeConnectivity ( int oldId, int newId )
 {
+  cout << "Changing connectivity from " << oldId << " to " << newId << std::endl;
+  // Print old connectivity
+  std::cout << "Old connectivity: ";
+  for (const auto& val : connectivity_) {
+    std::cout << val << " ";
+  }
+  std::cout << std::endl;
+
   replace ( connectivity_.begin(),
-	    connectivity_.end  (),
-	    oldId, newId );
+            connectivity_.end  (),
+            oldId, newId );
+
+  // Print new connectivity
+  std::cout << "New connectivity: ";
+  for (const auto& val : connectivity_) {
+    std::cout << val << " ";
+  }
+  std::cout << std::endl;
 
   if ( !isChanged_ && newId != oldId )
   {

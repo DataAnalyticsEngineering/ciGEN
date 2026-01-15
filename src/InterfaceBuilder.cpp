@@ -401,10 +401,11 @@ void   InterfaceBuilder::doFor3DMatInterface ( Global& globdat )
 {
 
   ElemPointer        ip, jp;
-
-  IntVector          face, sface, fface;
+  // Comment : Added variables face0(IntVector) and interfaces(Int2DVector) to capture more than 1 interface per element
+  IntVector          face, sface, fface, face0;
   IntVector          interConnec(globdat.nodeICount);
   IntVector          neighbors;
+  Int2DVector     interfaces;
   vector<IntVector>  doneFaces;
 
   int                nodeCount;
@@ -419,8 +420,8 @@ void   InterfaceBuilder::doFor3DMatInterface ( Global& globdat )
   {
     ip    = globdat.elemSet[ie];
     ielem = ip->getIndex ();
-
-    if ( ip->isOnInterface ( face, oppVertex, fIndex,
+    // Comment : Passing interfaces, face0 into the function additionally
+    if ( ip->isOnInterface ( face, interfaces, face0, oppVertex, fIndex,
 	                     globdat.nodeSet, globdat.nodeId2Position, globdat ) )
     {
       //cout << "found one interface \n";
@@ -1579,7 +1580,8 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 {
    ElemPointer        ip;
 
-  IntVector          face, sface;
+  IntVector          face, sface, face0, sface0;
+  Int2DVector        interfaces;
   IntVector          interConnec;
   IntVector          neighbors;
   IntVector          inodes, inodes0;
@@ -1588,8 +1590,9 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 
   int                nodeCount;
   int                ieCount(0);
-  int                ielem, m, n, mat;
+  int                ielem, m, n, o, mat;
   int                oppVertex, fIndex;
+  int                imat, jmat;
 
   bool               isOnInterface;
   bool               isJunction = false;
@@ -1600,12 +1603,15 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 
   for ( int ie = 0; ie < elemCount; ie++ )
   {
+    // COMMENT : Reset isJunction for each element
+    isJunction = false; // CORRECTED FOR 3D
     ip    = globdat.elemSet[ie];
     ielem = ip->getIndex ();
 
     cout << " ...for 3D polycrystal0 : \n";
     cout << ip->getElemType() << "\n";
-    isOnInterface = ip->isOnInterface ( face, oppVertex, fIndex, 
+    cout << "index: " << ielem << "\n";
+    isOnInterface = ip->isOnInterface ( face, interfaces, face0, oppVertex, fIndex, 
 	                                globdat.nodeSet, globdat.nodeId2Position, globdat );
 
     if ( !isOnInterface ) continue;
@@ -1632,8 +1638,10 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
         m    = face[in];
         mat  = globdat.nodeSet[globdat.nodeId2Position[m]]->getDuplicity();
 
-        if ( mat == 3 ) 
+        cout << "Node " << m << " has duplicity: " << mat << "\n";
+        if ( mat >= 3 ) 
         {
+          cout << "Junction Node Found: " << m << "\n";
           isJunction = true;
           break;
         }
@@ -1657,13 +1665,15 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 
       // sort the connectivity of face so that
       // it can be compared with simply "=" operator
-
+      imat  = globdat.elem2Domain[ielem];
       sface = face;
+      sface0 = face0; // COMMENT : Logic modified to use sface0 (Old face nodes) for checking if statement below
       sort ( sface.begin(), sface.end() );
+      sort ( sface0.begin(), sface0.end() ); // COMMENT : CORRECTED FOR 3D --> To enable face comparison for old mesh
 
       if ( find ( doneFaces.begin(),
 	          doneFaces.end  (), 
-		  sface ) != doneFaces.end() )
+		  sface0 ) != doneFaces.end() ) // COMMENT : Modified sface to sface0 to compare with original mesh face
       {
 	continue;
       }
@@ -1680,6 +1690,7 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 	}
       }
       else
+      // cout << "yoyo2\n";
       {
 	IntVector           neighbors;
 	IntVector           jnodes,jnodes0;
@@ -1688,6 +1699,7 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 	int                 neiCount, jelem;
 	int                 p1, p2, p3;
 	int                 m1, m2, m3;
+  int                 d1, d2, d3;
 
 	ElemPointer         jp;
 
@@ -1697,14 +1709,19 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 	m2 = face[1];
 	m3 = face[2];
 
-	if ( inodes == inodes0 ) 
+	// if ( inodes == inodes0 ) 
 	{
+    // COMMENT : The working logic : We know current face is junction at this line, so take first 3 nodes from new face (m1, m2, m3) for interface element. Thats is all.
+    // COMMENT : Create first 3 nodes of interface element from new face (m1, m2, m3)
 	  interConnec[0] = m1;
 	  interConnec[1] = m2;
 	  interConnec[2] = m3;
 	}
-	else
+  // COMMENT : Else statement made as it does not make sense anymore
+  
+	/*else
 	{	     
+    cout << "\n m1: " << m1 << ", m2: " << m2 << ", m3: " << m3 << "\n";
 	  it0 = inodes0.begin();
 	  itE = inodes0.end  ();
 
@@ -1715,8 +1732,8 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 	  interConnec[0] = inodes[it1-it0];
 	  interConnec[1] = inodes[it2-it0];
 	  interConnec[2] = inodes[it3-it0];
-	}
-
+	} */
+// COMMENT : Now find the other 3 nodes from neighboring elements sharing this face to complete the interface element connectivity
 	neighbors = globdat.elemNeighbors[ie]; 
         neiCount  = neighbors.size ();
 
@@ -1731,27 +1748,67 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
 
 	   if ( jp->getIndex() == ielem ) continue; 
 
-	   // find common face
+     jmat = globdat.elem2Domain[jp->getIndex()];
 
-	   jp->getSortedFaces   ( jfaces  );
+    
+     // if ( jmat == imat ) continue; // only for interfacial faces between different materials
+	   // find common face
+      
+	   jp->getSortedFaces0   ( jfaces  );
 	   jp->getConnectivity  ( jnodes  );
 	   jp->getConnectivity0 ( jnodes0 );
 
 	   // common face between ielem and jelem found
 
-	   if ( find ( jfaces.begin(), jfaces.end  (), sface ) != jfaces.end() )
+	   if ( find ( jfaces.begin(), jfaces.end(), sface0 ) != jfaces.end() ) // COMMENT : Modified sface to sface0 to compare with original mesh face
 	   {
+      std::cout << "imat: " << imat << ", jmat: " << jmat << std::endl;
+
 	     it0 = jnodes0.begin();
 	     itE = jnodes0.end  ();
+       // COMMENT : Take repsective nodes from current element original mesh face (face0) 
+       d1 = face0[0];
+       d2 = face0[1];
+       d3 = face0[2];
 
-	     it1 = find ( it0, itE, m1 );
-	     it2 = find ( it0, itE, m2 );
-	     it3 = find ( it0, itE, m3 );
+      /*std::cout << "inodes: ";
+      for (size_t idx = 0; idx < inodes.size(); ++idx) {
+        std::cout << inodes[idx] << " ";
+      }
+      std::cout << std::endl;
 
+      std::cout << "inodes0: ";
+      for (size_t idx = 0; idx < inodes0.size(); ++idx) {
+        std::cout << inodes0[idx] << " ";
+      }
+      std::cout << std::endl;
+
+      std::cout << "jnodes: ";
+      for (size_t idx = 0; idx < jnodes.size(); ++idx) {
+        std::cout << jnodes[idx] << " ";
+      }
+      std::cout << std::endl;
+
+      std::cout << "jnodes0: ";
+      for (size_t idx = 0; idx < jnodes0.size(); ++idx) {
+        std::cout << jnodes0[idx] << " ";
+      }
+      std::cout << std::endl;
+       cout << "Ielem: " << ielem << ", Jelem: " << jp->getIndex() << "\n";
+       cout << "m1: " << m1 << ", m2: " << m2 << ", m3: " << m3 << "\n";*/
+       //cout << "d1: " << d1 << ", d2: " << d2 << ", d3: " << d3 << "\n";
+
+      // COMMENT : Find position of these nodes in the face.
+	     it1 = find ( it0, itE, d1 );
+	     it2 = find ( it0, itE, d2 );
+	     it3 = find ( it0, itE, d3 );
+      // COMMENT : Take respective nodes from neighboring element original mesh face (face0) to complete the interface element connectivity
 	     p1 = jnodes[it1 - it0];
 	     p2 = jnodes[it2 - it0];
-	     p3 = jnodes[it2 - it0];
+	     p3 = jnodes[it3 - it0];  // CORRECTED for 3D
 
+       cout << "p1: " << p1 << ", p2: " << p2 << ", p3: " << p3 << "\n";
+       // COMMENT : Complete the interface element connectivity
 	     interConnec[3] = p1;
 	     interConnec[4] = p2;
 	     interConnec[5] = p3;
@@ -1762,14 +1819,18 @@ void   InterfaceBuilder::doFor3DPolycrystal ( Global& globdat )
       }
 
       // insert this interface 
-
+      std::cout << "Interface element " << ieCount << " nodes: ";
+      for (size_t idx = 0; idx < interConnec.size(); ++idx) {
+        std::cout << interConnec[idx] << " ";
+      }
+      std::cout << std::endl;
       globdat.interfaceSet.push_back ( ElemPointer ( new Element ( ieCount, interConnec ) ) );
 
       globdat.interfaceMats.push_back    (0);
       globdat.oppositeVertices.push_back (oppVertex);
       ieCount++;
 
-      doneFaces.push_back ( sface );
+      doneFaces.push_back ( sface0 );
     }
   }
 }

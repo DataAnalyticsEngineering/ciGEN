@@ -98,14 +98,15 @@ void MeshModifier::buildNeighborElems
 
     for ( int in = 0; in < inodeCnt; in++ )
     {
+      // Support : A list of elements, a node belongs to.
       int ii = inodes[in];
-
+      // cout << "Support size for node " << ii << ": " << globdat.nodeSupport[ii].size() << "\n";
       for ( int iee = 0; iee < globdat.nodeSupport[ii].size(); iee++ )
       {
 	    neighbors.insert ( globdat.nodeSupport[ii][iee] );
       }
     }
-
+    //cout << "Neighbors size: " << neighbors.size() << "\n";
     copy ( neighbors.begin(), neighbors.end(), back_inserter ( globdat.elemNeighbors[ie] ) );
   }
 
@@ -201,6 +202,7 @@ void MeshModifier::buildInterfacialNodes
     else if  ( globdat.isInterface  ||  globdat.isPolycrystal )
     {
       duplicity = matCount;
+      // cout << "Material count for node " << duplicity << "\n";
     }
     else if  ( globdat.isDomain     )
     {
@@ -424,6 +426,17 @@ void MeshModifier::duplicateNodes
   cout << "number of nodes added: " << idd << "\n\n";
 
   globdat.duplicatedNodes0 = globdat.duplicatedNodes;
+
+  /* Output duplicatedNodes0
+  std::cout << "duplicatedNodes0:" << std::endl;
+  for (const auto& pair : globdat.duplicatedNodes0) {
+    std::cout << "Node " << pair.first << ": ";
+    for (const auto& val : pair.second) {
+      std::cout << val << " ";
+    }
+    std::cout << std::endl;
+  }
+  */
 }
 
 // -------------------------------------------------------
@@ -785,7 +798,7 @@ void MeshModifier::tearPolycrystalElements
 	  if ( jmat != imat ) continue;
 	
 	  jelem    = globdat.elemId2Position[support[je]]; 
-
+    // cout << "IELEM: " << ielem << ", JELEM: " << jelem << "\n";
 	  globdat.elemSet[jelem]->changeConnectivity 
 
 	            ( inode, globdat.duplicatedNodes[inode][jj] );
